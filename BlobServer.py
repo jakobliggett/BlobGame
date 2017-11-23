@@ -61,7 +61,7 @@ def threaded_client(conn, ipaddr):
             data_encoded = conn.recv(2048)
             data = pickle.loads(data_encoded)
             if not data_encoded == b'':
-                print(data)
+                #print(data)
                 with master_blob_map_lock:
                     master_blob_map[str(ipaddr)] = data
         except:
@@ -69,14 +69,23 @@ def threaded_client(conn, ipaddr):
         try:
             if (master_blob_map != last_sent): ##Make sure they are getting new info
                 with master_blob_map_lock:
-                    print ('sending', master_blob_map)
+                    logging.debug("Sending {} to {}".format(master_blob_map, ipaddr))
                     encoded_map = pickle.dumps(master_blob_map)
                     conn.sendall(encoded_map)
                     last_sent = copy.copy(master_blob_map)
                 with print_lock:
                     logging.debug('Sent map to {}'.format(conn))
         except Exception as e:
-            print('Error sending: {}'.format(str(e)))
+            if str(e) == 'Error sending: [Errno 32] Broken pipe':
+                ##User has disconnected, proceeding is clean up code to remove them from game
+                logging.info("User {} has disconnected".format(ipaddr))
+                with active_connections_lock:
+                    active_connections.remove(str(ipaddr))
+                with master_blob_map_lock:
+                    del master_blob_map[str(ipaddr)]
+                _thread.exit()
+            else:
+                logging.error("Error '{}' sending to {}".format(str(e)), ipaddr)
 
 def main():
     ##Main thread handles listening for connections and passing them to their own personal threaded_client thread

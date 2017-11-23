@@ -34,6 +34,14 @@ class Blob:
         self.size = random.randrange(1, 10)
         self.color = color
 
+    def __eq__(self, other):
+        ##Only used to check if self has changed, so okay to perform only these basic checks.
+        ##Do not use in multiplayer checking
+        if (self.x == other.x) and (self.y == other.y) and (self.size == other.size):
+            return True
+        else:
+            return False
+
     def check_bounds(self):
         if self.x < 0:
             self.x = 0
@@ -89,7 +97,7 @@ def threaded_recv(conn):
                 data = pickle.loads(data_encoded)
                 new_map = dict(data)
                 blob_map = new_map
-            print ('tst', data)
+            logging.debug ('Recieved {} from server'.format(data))
         except:
             pass
 
@@ -131,7 +139,7 @@ def main():
     #blob_map.append(personal_player) ##BAD, use lock?
     x_change = 0
     y_change = 0
-    last_update = []
+    last_update = copy.copy(personal_player)
     ##END ONE TIME SETUP CODE
 
 
@@ -159,6 +167,7 @@ def main():
             #print(event)
         personal_player.move(x_change, y_change)
         if last_update != personal_player:
+            #print('equality testing: ', last_update, personal_player, last_update==personal_player)
             update_player(personal_player, s)
             last_update = copy.copy(personal_player)
         draw_environment()
