@@ -1,5 +1,5 @@
 import pygame
-import random, socket, _thread, logging, copy
+import random, socket, _thread, logging, copy, math
 import pickle
 
 if __name__ == '__main__':
@@ -28,11 +28,12 @@ if __name__ == '__main__':
     blob_map_lock = _thread.allocate_lock()
 
 class Blob:
-    def __init__(self, color):
+    def __init__(self, color, type):
         self.x = random.randrange(0, WIDTH)
         self.y = random.randrange(0, HEIGHT)
         self.size = random.randrange(1, 10)
         self.color = color
+        self.type = type ## 0 is player, 1 is food,
 
     def __eq__(self, other):
         ##Only used to check if self has changed, so okay to perform only these basic checks.
@@ -74,7 +75,6 @@ def draw_environment():
         #print('other_rep: ', other_blob_representation)
         other_blob = text_to_blob(other_blob_representation)
         draw_blob(other_blob)
-    pygame.display.update()
 
 def update_player(player, conn):
     to_send = blob_to_text(player) ##Encoding step
@@ -87,6 +87,13 @@ def draw_blob(blob):
         pygame.draw.circle(game_display, blob.color, [blob.x, blob.y], blob.size)
     except Exception as e:
         logging.error('Error drawing blob: {}'.format(str(e)))
+
+def draw_ui(blob, mouse_x, mouse_y, dist = 20, size=3):
+    angle_mouse_player = ( math.atan2((mouse_y-blob.y), (mouse_x-blob.y)) )
+    print(math.degrees(angle_mouse_player))
+    x, y = (dist*math.cos((-angle_mouse_player)))+blob.x, (dist*math.sin((-angle_mouse_player)))+blob.y
+    pygame.draw.polygon(game_display, BLACK, [(x, y), (x-size, y+size), (x+size, y+size)])
+
 
 def threaded_recv(conn):
     while True:
@@ -106,8 +113,9 @@ def blob_to_text(blob):
     y = blob.y
     color = blob.color
     size = blob.size
+    type = blob.type
 
-    newlst = [x, y, color, size]
+    newlst = [x, y, color, size, type]
     return newlst
 
 def text_to_blob(text):
@@ -115,8 +123,9 @@ def text_to_blob(text):
     y = (text[1])
     color = (text[2])
     size = (text[3])
+    type = (text[4])
 
-    new_blob = Blob(color)
+    new_blob = Blob(color, type)
     new_blob.set_attributes(x, y, size)
     return new_blob
 
@@ -135,11 +144,12 @@ def main():
 
 
     ##BEGIN ONE-TIME SETUP CODE
-    personal_player = Blob(BLACK)
-    #blob_map.append(personal_player) ##BAD, use lock?
+    personal_player = Blob(BLACK, 0)
     x_change = 0
     y_change = 0
-    last_update = copy.copy(personal_player)
+    last_update = Blob(BLACK, 0) ##Make this different to ensure the first update is done
+    cursor_x = 0
+    cursor_y = 0
     ##END ONE TIME SETUP CODE
 
 
@@ -147,6 +157,7 @@ def main():
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                ##Introduce some signalling for telling the server to shutdown and del the user
                 pygame.quit()
                 quit()
             if event.type == pygame.KEYDOWN:
@@ -163,17 +174,17 @@ def main():
                     x_change = 0
                 if event.key == pygame.K_DOWN or event.key == pygame.K_UP:
                     y_change = 0
+            if event.type == pygame.MOUSEMOTION:
+                cursor_x, cursor_y = pygame.mouse.get_pos()
 
-            #print(event)
         personal_player.move(x_change, y_change)
         if last_update != personal_player:
-            #print('equality testing: ', last_update, personal_player, last_update==personal_player)
             update_player(personal_player, s)
             last_update = copy.copy(personal_player)
         draw_environment()
+        draw_ui(personal_player, cursor_x, cursor_y)
         pygame.display.update()
         clock.tick(60)
-        #print(blob_map)
 
 if __name__ == '__main__':
     main()

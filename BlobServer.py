@@ -34,27 +34,11 @@ while bound == False:
 server.listen(max_connections)
 ### END SOCKET BOILERPLATE
 
-'''
-def threaded_send(conn):
-    #last_sent = []
-    while True:
-        try:
-            #if (master_blob_map != last_sent) or True: ##Make sure they are getting new info
-                #with master_blob_map_lock:
-            encoded_map = pickle.dumps(master_blob_map)
-            print ('sending', master_blob_map, encoded_map)
-            conn.sendall(encoded_map)
-            #last_sent = master_blob_map
-            #with print_lock:
-                #logging.debug('Sent map to {}'.format(conn))
-        except Exception as e:
-            print('Error sending: {}'.format(str(e)))
-'''
-
-def threaded_client(conn, ipaddr):
+def threaded_client(conn, ipaddr, port):
+    ip_plus_port = str(ipaddr)+str(port)
     last_sent = {}
     with active_connections_lock:
-        active_connections.append(str(ipaddr))
+        active_connections.append(ip_plus_port)
 
     while True:
         try:
@@ -63,13 +47,13 @@ def threaded_client(conn, ipaddr):
             if not data_encoded == b'':
                 #print(data)
                 with master_blob_map_lock:
-                    master_blob_map[str(ipaddr)] = data
+                    master_blob_map[ip_plus_port] = data
         except:
             pass ##SHHH, ... I know this is bad
         try:
             if (master_blob_map != last_sent): ##Make sure they are getting new info
                 with master_blob_map_lock:
-                    logging.debug("Sending {} to {}".format(master_blob_map, ipaddr))
+                    logging.debug("Sending {} to {}".format(master_blob_map, ip_plus_port))
                     encoded_map = pickle.dumps(master_blob_map)
                     conn.sendall(encoded_map)
                     last_sent = copy.copy(master_blob_map)
@@ -78,14 +62,14 @@ def threaded_client(conn, ipaddr):
         except Exception as e:
             if str(e) == 'Error sending: [Errno 32] Broken pipe':
                 ##User has disconnected, proceeding is clean up code to remove them from game
-                logging.info("User {} has disconnected".format(ipaddr))
+                logging.info("User {} has disconnected".format(ip_plus_port))
                 with active_connections_lock:
-                    active_connections.remove(str(ipaddr))
+                    active_connections.remove(ip_plus_port)
                 with master_blob_map_lock:
-                    del master_blob_map[str(ipaddr)]
+                    del master_blob_map[ip_plus_port]
                 _thread.exit()
             else:
-                logging.error("Error '{}' sending to {}".format(str(e)), ipaddr)
+                logging.error("Error '{}' sending to {}".format(str(e)), ip_plus_port)
 
 def main():
     ##Main thread handles listening for connections and passing them to their own personal threaded_client thread
@@ -94,8 +78,7 @@ def main():
         try:
             conn, addr = server.accept()
             logging.info('Connected to {}:{}'.format(addr[0],addr[1]))
-            _thread.start_new(threaded_client, (conn, addr[0]))
-            #_thread.start_new(threaded_send, (conn,))
+            _thread.start_new(threaded_client, (conn, addr[0], addr[1]))
         except:
             pass
 
